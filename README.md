@@ -8,6 +8,9 @@ station and tests.
 
 Design: [docs/2026-09-28-fts-sim-design.md](docs/2026-09-28-fts-sim-design.md)
 
+Write-up (Korean, with an English summary):
+[하드웨어 없이 드론 비행 종료 시스템(FTS) 만들고 시험하기](https://alpentalsystems.com/posts/2026-09-fts-sim/)
+
 ## Host tests (Mac or VM)
 
 ```sh
