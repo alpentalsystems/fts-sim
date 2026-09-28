@@ -27,6 +27,7 @@ struct fts_config {
 	float rate_limit_rad_s;
 	int64_t heartbeat_timeout_us;
 	int64_t link_timeout_us;
+	int64_t sensor_timeout_us; /* GNSS and baro age limit for ARM */
 	int64_t manual_window_us;
 	int64_t chute_delay_us;
 };
@@ -54,7 +55,6 @@ struct fts {
 	int64_t t_heartbeat_us;
 	int64_t t_link_us;
 	int64_t t_terminate_arm_us;
-	bool manual_request;
 	struct fts_hold hold_fence;
 	struct fts_hold hold_ceiling;
 	struct fts_hold hold_control;
@@ -62,6 +62,8 @@ struct fts {
 	int64_t t_trigger_us;
 	int64_t t_relay_us;
 	int64_t t_chute_us;
+	/* start of the parachute delay; moves back with the clock */
+	int64_t t_chute_from_us;
 };
 
 void fts_default_config(struct fts_config *c);

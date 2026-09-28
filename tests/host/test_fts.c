@@ -250,6 +250,93 @@ static void test_time_going_backwards_restarts_confirmation(void)
 	CHECK(s.state == FTS_ARMED);
 }
 
+static void test_clock_rewind_does_not_trip_timeouts(void)
+{
+	struct fts_config c;
+	struct fts s;
+
+	armed(&s, &c); /* last heartbeat 0.9 s, last command 1 s */
+	fts_tick(&s, 500 * MS); /* clock jumped back, no new frames yet */
+	CHECK(s.state == FTS_ARMED);
+	fts_tick(&s, 1 * S + 500 * MS); /* 1.0 s after the rewind */
+	CHECK(s.state == FTS_ARMED);
+	fts_tick(&s, 1 * S + 500 * MS + 1);
+	CHECK(s.state == FTS_TERMINATED && s.cause == FTS_CAUSE_AP_FREEZE);
+}
+
+static void test_terminate_arm_from_the_future_is_rejected(void)
+{
+	struct fts_config c;
+	struct fts s;
+
+	armed(&s, &c);
+	CHECK(fts_on_command(&s, 2 * S, FTS_CMD_TERMINATE_ARM));
+	CHECK(!fts_on_command(&s, 1 * S + 500 * MS, FTS_CMD_TERMINATE));
+	CHECK(s.state == FTS_ARMED);
+}
+
+static void test_terminate_cannot_be_hidden_by_disarm(void)
+{
+	struct fts_config c;
+	struct fts s;
+
+	armed(&s, &c);
+	(void)fts_on_command(&s, 1 * S, FTS_CMD_TERMINATE_ARM);
+	CHECK(fts_on_command(&s, 1 * S, FTS_CMD_TERMINATE));
+	CHECK(!fts_on_command(&s, 1 * S, FTS_CMD_DISARM));
+	CHECK(s.state == FTS_TERMINATED && s.cause == FTS_CAUSE_MANUAL);
+	CHECK(fts_relay_open(&s) && s.t_relay_us == 1 * S);
+}
+
+static void test_parachute_fires_after_clock_rewind(void)
+{
+	struct fts_config c;
+	struct fts s;
+
+	armed(&s, &c);
+	(void)fts_on_command(&s, 2 * S, FTS_CMD_TERMINATE_ARM);
+	(void)fts_on_command(&s, 2 * S, FTS_CMD_TERMINATE);
+	fts_tick(&s, 2 * S);
+	fts_tick(&s, 0); /* clock reset before the parachute fired */
+	CHECK(!fts_chute_fire(&s));
+	fts_tick(&s, 300 * MS);
+	CHECK(fts_chute_fire(&s));
+}
+
+static void test_gnss_altitude_without_fix_is_ignored(void)
+{
+	struct fts_config c;
+	struct fts s;
+
+	armed(&s, &c);
+	for (int64_t t = 1 * S; t < 3 * S; t += 10 * MS) {
+		fts_on_imu(&s, t, LEVEL, STILL);
+		if ((t % (100 * MS)) == 0) {
+			fts_on_gnss(&s, t, 375665000, 1269780000, 1000000, 0U);
+			fts_on_heartbeat(&s, t);
+			fts_on_baro(&s, t, 101325.0f);
+			(void)fts_on_command(&s, t, FTS_CMD_PING);
+		}
+		fts_tick(&s, t);
+	}
+	CHECK(s.state == FTS_ARMED);
+}
+
+static void test_arm_rejects_stale_gnss_or_baro(void)
+{
+	struct fts_config c;
+	struct fts s;
+
+	setup(&s, &c);
+	healthy(&s, 0, 1 * S, 0); /* GNSS and baro stop after 0.9 s */
+	for (int64_t t = 1 * S; t <= 3 * S; t += 100 * MS) {
+		fts_on_heartbeat(&s, t);
+		fts_tick(&s, t);
+	}
+	CHECK(!fts_on_command(&s, 3 * S, FTS_CMD_ARM));
+	CHECK(s.state == FTS_SAFE);
+}
+
 int main(void)
 {
 	test_pbit_pass_and_fail();
@@ -266,5 +353,11 @@ int main(void)
 	test_manual_terminate_needs_both_steps_in_window();
 	test_parachute_after_delay_and_latched();
 	test_time_going_backwards_restarts_confirmation();
+	test_clock_rewind_does_not_trip_timeouts();
+	test_terminate_arm_from_the_future_is_rejected();
+	test_terminate_cannot_be_hidden_by_disarm();
+	test_parachute_fires_after_clock_rewind();
+	test_gnss_altitude_without_fix_is_ignored();
+	test_arm_rejects_stale_gnss_or_baro();
 	return CHECK_DONE();
 }

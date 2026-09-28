@@ -21,6 +21,7 @@ void fts_default_config(struct fts_config *c)
 	c->rate_limit_rad_s = (float)(300.0 * DEG_TO_RAD);
 	c->heartbeat_timeout_us = 1000000;
 	c->link_timeout_us = 5000000;
+	c->sensor_timeout_us = 1000000;
 	c->manual_window_us = 3000000;
 	c->chute_delay_us = 300000;
 }
@@ -65,6 +66,7 @@ void fts_init(struct fts *s, const struct fts_config *c)
 	s->t_trigger_us = -1;
 	s->t_relay_us = -1;
 	s->t_chute_us = -1;
+	s->t_chute_from_us = -1;
 }
 
 void fts_pbit_done(struct fts *s, uint8_t fail_mask, int64_t t_us)
@@ -96,8 +98,8 @@ void fts_on_gnss(struct fts *s, int64_t t_us, int32_t lat_e7, int32_t lon_e7, in
 {
 	s->t_gnss_us = t_us;
 	s->gnss_fix = fix;
-	s->gnss_alt_m = (double)alt_mm / 1000.0;
 	if (fix >= 3U) {
+		s->gnss_alt_m = (double)alt_mm / 1000.0;
 		geo_to_local(&s->cfg.origin, lat_e7, lon_e7, &s->pos);
 		hold_sample(&s->hold_fence, t_us, !geo_inside(&s->cfg.fence, s->pos));
 	}
@@ -119,8 +121,26 @@ static bool recent(int64_t t_event, int64_t t_now, int64_t window)
 	return (t_event >= 0) && (t_now >= t_event) && ((t_now - t_event) <= window);
 }
 
+/* After the clock goes back, timeouts restart from the new time. */
+static void rebase(int64_t *t_event, int64_t t_now)
+{
+	if (*t_event > t_now) {
+		*t_event = t_now;
+	}
+}
+
+static void terminate(struct fts *s, enum fts_cause cause, int64_t t_us)
+{
+	s->state = FTS_TERMINATED;
+	s->cause = cause;
+	s->t_trigger_us = t_us;
+	s->t_relay_us = t_us;
+	s->t_chute_from_us = t_us;
+}
+
 bool fts_on_command(struct fts *s, int64_t t_us, uint8_t cmd)
 {
+	rebase(&s->t_heartbeat_us, t_us);
 	if (s->state == FTS_ARMED || s->state == FTS_SAFE) {
 		s->t_link_us = t_us;
 	}
@@ -128,10 +148,11 @@ bool fts_on_command(struct fts *s, int64_t t_us, uint8_t cmd)
 	case FTS_CMD_PING:
 		return (s->state == FTS_ARMED) || (s->state == FTS_SAFE);
 	case FTS_CMD_ARM:
-		if ((s->state != FTS_SAFE) || (s->gnss_fix < 3U) || (s->t_gnss_us < 0) ||
+		if ((s->state != FTS_SAFE) || (s->gnss_fix < 3U) ||
+		    !recent(s->t_gnss_us, t_us, s->cfg.sensor_timeout_us) ||
 		    !geo_inside(&s->cfg.fence, s->pos) ||
 		    !recent(s->t_heartbeat_us, t_us, s->cfg.heartbeat_timeout_us) ||
-		    (s->t_baro_us < 0)) {
+		    !recent(s->t_baro_us, t_us, s->cfg.sensor_timeout_us)) {
 			return false;
 		}
 		s->ref_pressure_pa = s->pressure_pa;
@@ -159,7 +180,7 @@ bool fts_on_command(struct fts *s, int64_t t_us, uint8_t cmd)
 		    !recent(s->t_terminate_arm_us, t_us, s->cfg.manual_window_us)) {
 			return false;
 		}
-		s->manual_request = true;
+		terminate(s, FTS_CAUSE_MANUAL, t_us);
 		return true;
 	default:
 		return false;
@@ -172,18 +193,11 @@ static double baro_alt_m(float p, float p0)
 	return 44330.0 * (1.0 - pow((double)p / (double)p0, 1.0 / 5.255));
 }
 
-static void terminate(struct fts *s, enum fts_cause cause, int64_t t_us)
-{
-	s->state = FTS_TERMINATED;
-	s->cause = cause;
-	s->t_trigger_us = t_us;
-	s->t_relay_us = t_us;
-}
-
 void fts_tick(struct fts *s, int64_t t_us)
 {
 	if (s->state == FTS_TERMINATED) {
-		if ((s->t_chute_us < 0) && ((t_us - s->t_relay_us) >= s->cfg.chute_delay_us)) {
+		rebase(&s->t_chute_from_us, t_us);
+		if ((s->t_chute_us < 0) && ((t_us - s->t_chute_from_us) >= s->cfg.chute_delay_us)) {
 			s->t_chute_us = t_us;
 		}
 		return;
@@ -191,15 +205,15 @@ void fts_tick(struct fts *s, int64_t t_us)
 	if (s->state != FTS_ARMED) {
 		return;
 	}
+	rebase(&s->t_heartbeat_us, t_us);
+	rebase(&s->t_link_us, t_us);
 	if (s->t_baro_us >= 0) {
 		double alt = baro_alt_m(s->pressure_pa, s->ref_pressure_pa);
 		double gnss_rel = s->gnss_alt_m - s->ref_gnss_alt_m;
 
 		hold_sample(&s->hold_ceiling, t_us, fmax(alt, gnss_rel) > s->cfg.fence.ceiling_m);
 	}
-	if (s->manual_request) {
-		terminate(s, FTS_CAUSE_MANUAL, t_us);
-	} else if (hold_confirmed(&s->hold_fence, s->cfg.fence_confirm_us)) {
+	if (hold_confirmed(&s->hold_fence, s->cfg.fence_confirm_us)) {
 		terminate(s, FTS_CAUSE_FENCE, t_us);
 	} else if (hold_confirmed(&s->hold_ceiling, s->cfg.fence_confirm_us)) {
 		terminate(s, FTS_CAUSE_CEILING, t_us);
