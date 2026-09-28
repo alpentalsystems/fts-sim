@@ -56,6 +56,7 @@ void fts_init(struct fts *s, const struct fts_config *c)
 	s->state = FTS_PBIT;
 	s->cause = FTS_CAUSE_NONE;
 	s->t_gnss_us = -1;
+	s->t_fix_us = -1;
 	s->t_baro_us = -1;
 	s->t_heartbeat_us = -1;
 	s->t_link_us = -1;
@@ -99,6 +100,7 @@ void fts_on_gnss(struct fts *s, int64_t t_us, int32_t lat_e7, int32_t lon_e7, in
 	s->t_gnss_us = t_us;
 	s->gnss_fix = fix;
 	if (fix >= 3U) {
+		s->t_fix_us = t_us;
 		s->gnss_alt_m = (double)alt_mm / 1000.0;
 		geo_to_local(&s->cfg.origin, lat_e7, lon_e7, &s->pos);
 		hold_sample(&s->hold_fence, t_us, !geo_inside(&s->cfg.fence, s->pos));
@@ -207,6 +209,7 @@ void fts_tick(struct fts *s, int64_t t_us)
 	}
 	rebase(&s->t_heartbeat_us, t_us);
 	rebase(&s->t_link_us, t_us);
+	rebase(&s->t_fix_us, t_us);
 	if (s->t_baro_us >= 0) {
 		double alt = baro_alt_m(s->pressure_pa, s->ref_pressure_pa);
 		double gnss_rel = s->gnss_alt_m - s->ref_gnss_alt_m;
@@ -223,6 +226,8 @@ void fts_tick(struct fts *s, int64_t t_us)
 		terminate(s, FTS_CAUSE_AP_FREEZE, t_us);
 	} else if (!recent(s->t_link_us, t_us, s->cfg.link_timeout_us)) {
 		terminate(s, FTS_CAUSE_LINK, t_us);
+	} else if (!recent(s->t_fix_us, t_us, s->cfg.sensor_timeout_us)) {
+		terminate(s, FTS_CAUSE_GNSS_LOST, t_us);
 	}
 	if ((s->state == FTS_TERMINATED) && (s->cfg.chute_delay_us <= 0)) {
 		s->t_chute_us = t_us;

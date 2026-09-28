@@ -28,8 +28,8 @@ reviews this spec for anything too close to former work.
 
 ## Non-goals
 
-- The FTS's own sensor faults (GNSS or IMU failure inside the FTS); possible
-  part 2.
+- The FTS's own IMU and barometer faults; possible part 2. (Loss of the
+  FTS's GNSS fix is a trigger; see below.)
 - Redundant FTS channels or voting.
 - A staged "land first" response through the autopilot.
 - Real hardware; the design keeps it possible (see Hardware path).
@@ -100,6 +100,7 @@ Triggers (checked only in `ARMED`; thresholds are settings):
 | Loss of control | FTS IMU | tilt over 60° or body rate over 300°/s for more than 0.5 s |
 | Autopilot freeze | heartbeat line, 10 Hz | no heartbeat for more than 1.0 s |
 | Command link lost | radio link | no valid frame for more than 5 s |
+| GNSS lost | FTS GNSS | no frame with a 3D fix for more than 1.0 s (the fence can no longer be checked) |
 | Manual terminate | radio link | `TERMINATE_ARM`, then `TERMINATE` within 3 s |
 
 Termination sequence: open the motor relay immediately; fire the parachute
@@ -125,7 +126,7 @@ correctly; fence settings are valid (closed polygon, ceiling above ground).
   opposite to the velocity and shows a canopy model that follows the drone.
 - Heartbeat: the bridge reads PX4's MAVLink heartbeat over UDP and forwards
   it on serial link 1; freezing the PX4 process stops it.
-- Fault hooks in the bridge: cut one motor.
+- Fault hooks in the bridge: cut one motor; stop the FTS GNSS feed.
 
 ## Tests
 
@@ -144,6 +145,7 @@ record):
 | Loss of control | bridge cuts one motor | terminate about 0.5 s after the tilt |
 | Autopilot freeze | `SIGSTOP` the PX4 process | terminate about 1 s after the heartbeat stops |
 | Command link lost | ground station stops sending | terminate about 5 s later |
+| GNSS lost | bridge stops the FTS GNSS feed | terminate about 1 s later |
 | Manual terminate | two-step command | terminate at once |
 | False alarms | flight near the fence; one noisy GNSS sample; one missed heartbeat | no termination |
 

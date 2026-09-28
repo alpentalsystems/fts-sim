@@ -16,6 +16,7 @@ enum fts_cause {
 	FTS_CAUSE_AP_FREEZE,
 	FTS_CAUSE_LINK,
 	FTS_CAUSE_MANUAL,
+	FTS_CAUSE_GNSS_LOST,
 };
 
 struct fts_config {
@@ -27,7 +28,7 @@ struct fts_config {
 	float rate_limit_rad_s;
 	int64_t heartbeat_timeout_us;
 	int64_t link_timeout_us;
-	int64_t sensor_timeout_us; /* GNSS and baro age limit for ARM */
+	int64_t sensor_timeout_us; /* GNSS and baro age limit for ARM; GNSS fix limit when armed */
 	int64_t manual_window_us;
 	int64_t chute_delay_us;
 };
@@ -45,6 +46,7 @@ struct fts {
 	uint8_t pbit_fail;
 	/* latest inputs; -1 means never received */
 	int64_t t_gnss_us;
+	int64_t t_fix_us; /* last frame with a 3D fix */
 	struct geo_point pos;
 	double gnss_alt_m;
 	uint8_t gnss_fix;

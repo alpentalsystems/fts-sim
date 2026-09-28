@@ -308,8 +308,8 @@ static void test_gnss_altitude_without_fix_is_ignored(void)
 	struct fts_config c;
 	struct fts s;
 
-	armed(&s, &c);
-	for (int64_t t = 1 * S; t < 3 * S; t += 10 * MS) {
+	armed(&s, &c); /* last fix at 0.9 s; stay under the 1.0 s GNSS timeout */
+	for (int64_t t = 1 * S; t < 1 * S + 800 * MS; t += 10 * MS) {
 		fts_on_imu(&s, t, LEVEL, STILL);
 		if ((t % (100 * MS)) == 0) {
 			fts_on_gnss(&s, t, 375665000, 1269780000, 1000000, 0U);
@@ -337,6 +337,58 @@ static void test_arm_rejects_stale_gnss_or_baro(void)
 	CHECK(s.state == FTS_SAFE);
 }
 
+/* Feeds healthy inputs except GNSS, which reports the given fix. */
+static void gnss_fix(struct fts *s, int64_t t0, int64_t t1, uint8_t fix)
+{
+	for (int64_t t = t0; t < t1; t += 10 * MS) {
+		fts_on_imu(s, t, LEVEL, STILL);
+		if ((t % (100 * MS)) == 0) {
+			fts_on_gnss(s, t, 375665000, 1269780000, 30000, fix);
+			fts_on_heartbeat(s, t);
+			fts_on_baro(s, t, 101325.0f);
+			(void)fts_on_command(s, t, FTS_CMD_PING);
+		}
+		fts_tick(s, t);
+	}
+}
+
+static void test_gnss_fix_lost_terminates(void)
+{
+	struct fts_config c;
+	struct fts s;
+
+	armed(&s, &c); /* last fix at 0.9 s */
+	gnss_fix(&s, 1 * S, 1 * S + 910 * MS, 0U); /* through 1.9 s */
+	CHECK(s.state == FTS_ARMED);
+	gnss_fix(&s, 1 * S + 910 * MS, 2 * S, 0U);
+	CHECK(s.state == FTS_TERMINATED && s.cause == FTS_CAUSE_GNSS_LOST);
+}
+
+static void test_gnss_silence_terminates(void)
+{
+	struct fts_config c;
+	struct fts s;
+
+	armed(&s, &c);
+	for (int64_t t = 1 * S; t < 2 * S; t += 10 * MS) {
+		fts_on_imu(&s, t, LEVEL, STILL);
+		fts_on_heartbeat(&s, t);
+		fts_tick(&s, t);
+	}
+	CHECK(s.state == FTS_TERMINATED && s.cause == FTS_CAUSE_GNSS_LOST);
+}
+
+static void test_short_fix_dropout_does_not_terminate(void)
+{
+	struct fts_config c;
+	struct fts s;
+
+	armed(&s, &c);
+	gnss_fix(&s, 1 * S, 1 * S + 800 * MS, 0U);
+	gnss_fix(&s, 1 * S + 800 * MS, 4 * S, 3U);
+	CHECK(s.state == FTS_ARMED);
+}
+
 int main(void)
 {
 	test_pbit_pass_and_fail();
@@ -359,5 +411,8 @@ int main(void)
 	test_parachute_fires_after_clock_rewind();
 	test_gnss_altitude_without_fix_is_ignored();
 	test_arm_rejects_stale_gnss_or_baro();
+	test_gnss_fix_lost_terminates();
+	test_gnss_silence_terminates();
+	test_short_fix_dropout_does_not_terminate();
 	return CHECK_DONE();
 }
