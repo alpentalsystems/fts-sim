@@ -97,9 +97,9 @@ static void on_imu(struct app *a, const struct fts_imu *m, struct app_tx *tx)
 	note_sensor(a, t);
 	if (a->fts.state == FTS_PBIT) {
 		a->pbit.imu_count++;
-		a->accel_sum += sqrt((double)m->accel[0] * m->accel[0] +
-				     (double)m->accel[1] * m->accel[1] +
-				     (double)m->accel[2] * m->accel[2]);
+		a->accel_sum += sqrt((double)m->accel[0] * (double)m->accel[0] +
+				     (double)m->accel[1] * (double)m->accel[1] +
+				     (double)m->accel[2] * (double)m->accel[2]);
 		a->accel_n++;
 	}
 	fts_on_imu(&a->fts, t, m->q, m->gyro);

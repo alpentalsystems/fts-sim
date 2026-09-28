@@ -1,0 +1,4 @@
+/* Link 2 (ground station) on the second native PTY UART. */
+&uart1 {
+	status = "okay";
+};
