@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <world name="drop">
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>0</real_time_update_rate>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <model name="box">
+      <pose>0 0 200 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>2.0</mass>
+          <inertia><ixx>0.05</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.05</iyy><iyz>0</iyz><izz>0.05</izz></inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><box><size>0.4 0.4 0.2</size></box></geometry>
+        </collision>
+      </link>
+      <plugin filename="FtsParachute" name="fts::Parachute">
+        <link_name>link</link_name>
+        <canopy_model>canopy</canopy_model>
+        <cd>1.5</cd>
+        <area>0.85</area>
+        <air_density>1.225</air_density>
+        <wind>0 0 0</wind>
+        <topic>/test/chute</topic>
+        <state_topic>/test/chute_state</state_topic>
+      </plugin>
+    </model>
+    <model name="canopy">
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <gravity>false</gravity>
+        <inertial>
+          <mass>0.1</mass>
+          <inertia><ixx>0.001</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.001</iyy><iyz>0</iyz><izz>0.001</izz></inertia>
+        </inertial>
+      </link>
+    </model>
+  </world>
+</sdf>

@@ -13,3 +13,7 @@ export PATH=$HOME/.local/bin:$PATH
 		-DPython3_EXECUTABLE="$HOME/zephyrproject/.venv/bin/python"
 	ninja -C "$REPO/build/fts"
 )
+
+# Gazebo plugins
+cmake -GNinja -S "$REPO/sim/plugins" -B "$REPO/build/sim"
+ninja -C "$REPO/build/sim"
