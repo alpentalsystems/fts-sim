@@ -68,7 +68,20 @@ Autopilot frozen:
 
 ![Autopilot freeze, altitude](img/freeze-altitude.png)
 
-## 6. Limits
+## 6. Gazebo screenshots
+
+Fence breach: the drone crossing the east fence line at 20 m (fence post in the foreground), then the descent under the parachute outside the fence.
+
+![Drone crossing the east fence line](img/gazebo-fence-cross.png)
+![Parachute descent outside the fence](img/gazebo-fence-canopy.png)
+
+Loss of control: hover at 20 m, rolling over after one motor is cut, and under the parachute (the canopy is drawn as a sphere 2 m above the drone).
+
+![Hover before the motor cut](img/gazebo-hover.png)
+![Rolling over after the motor cut](img/gazebo-tumble.png)
+![Under the parachute](img/gazebo-canopy.png)
+
+## 7. Limits
 
 - Simulation only. The FTS logic and protocol are the parts meant to carry over to hardware.
 - The FTS's own IMU and barometer faults are out of scope; loss of its GNSS fix is covered.
