@@ -3038,6 +3038,8 @@ install_scripts=$base/lib/fts_ground
 
 Create `ros2_ws/src/fts_ground/resource/fts_ground` (empty file).
 
+Add the repo license (owner's choice: Apache-2.0, matching the packages): `curl -fsSL https://www.apache.org/licenses/LICENSE-2.0.txt -o LICENSE`, then check that the first line reads `Apache License` and the file ends with the appendix.
+
 Append to `.gitignore`:
 
 ```
@@ -3068,7 +3070,7 @@ Expected: `Summary: 2 packages finished`; the message definition prints; `ground
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ros2_ws/src .gitignore tools/build-vm.sh
+git add ros2_ws/src .gitignore tools/build-vm.sh LICENSE
 git commit -m "feat: add the ROS 2 ground station" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 ```
 
@@ -4023,6 +4025,10 @@ tools/run-scenarios.sh fence manual    # VM: one fresh simulation per scenario
 ```
 
 Results: [docs/test-log.md](docs/test-log.md).
+
+## License
+
+Apache-2.0; see [LICENSE](LICENSE).
 ```
 
 - [ ] **Step 4: Screenshots (owner)**
