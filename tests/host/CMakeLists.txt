@@ -19,3 +19,8 @@ add_executable(test_geo test_geo.c ${REPO}/fts/src/logic/geo.c)
 target_include_directories(test_geo PRIVATE ${REPO}/fts/src/logic)
 target_link_libraries(test_geo m)
 add_test(NAME geo COMMAND test_geo)
+
+add_executable(test_fts test_fts.c ${REPO}/fts/src/logic/fts.c ${REPO}/fts/src/logic/geo.c)
+target_include_directories(test_fts PRIVATE ${REPO}/fts/src/logic ${REPO}/common/include)
+target_link_libraries(test_fts m)
+add_test(NAME fts COMMAND test_fts)
