@@ -141,6 +141,16 @@ static void test_parser_resyncs_after_noise_and_bad_crc(void)
 	CHECK(frames[1].payload[8] == 1U);
 }
 
+static void test_gs_cmd_matches_python_literal(void)
+{
+	static const uint8_t expected[] = {0xA5, 0x05, 0x05, 0x09, 0x00, 0x00, 0x00, 0x04, 0x90, 0x23};
+	struct fts_gs_cmd c = {.seq = 9U, .cmd = FTS_CMD_TERMINATE};
+	uint8_t buf[FTS_FRAME_MAX];
+	size_t n = fts_encode_gs_cmd(&c, buf, sizeof(buf));
+
+	CHECK(n == sizeof(expected) && memcmp(buf, expected, n) == 0);
+}
+
 int main(void)
 {
 	test_crc16_check_value();
@@ -149,5 +159,6 @@ int main(void)
 	test_command_output_readback_status_roundtrip();
 	test_decode_rejects_wrong_type_or_len();
 	test_parser_resyncs_after_noise_and_bad_crc();
+	test_gs_cmd_matches_python_literal();
 	return CHECK_DONE();
 }
