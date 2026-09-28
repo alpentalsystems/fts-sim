@@ -5,6 +5,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define FTS_SYNC 0xA5U
 #define FTS_MAX_PAYLOAD 48U
 /* sync, type, len, crc (2) */
@@ -133,5 +137,9 @@ int fts_decode_gs_cmd(const struct fts_frame *f, struct fts_gs_cmd *m);
 int fts_decode_output(const struct fts_frame *f, struct fts_output *m);
 int fts_decode_readback(const struct fts_frame *f, struct fts_readback *m);
 int fts_decode_status(const struct fts_frame *f, struct fts_status *m);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* FTS_PROTO_H_ */
