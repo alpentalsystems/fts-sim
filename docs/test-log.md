@@ -36,7 +36,7 @@ tools/summarize_runs.py             # the table below
 | manual | True | MANUAL | 68.0 | 68.0 | 368.0 | 19.9 | -5.0 | 10.7 |  | 11.2 |
 | near_fence | True | NONE |  |  |  |  |  |  |  | 90.4 |
 
-In every terminated run the relay opened at the trigger and the parachute fired 300 ms later; every drone landed; descent under the parachute was 4.9 to 5.1 m/s.
+The relay and parachute columns are the times the FTS commanded them; the bridge acted on each command 0 to 16 ms of simulation time later (its log shows the times). In every terminated run the relay was commanded at the trigger and the parachute 300 ms later; every drone landed; descent under the parachute was 4.9 to 5.1 m/s.
 
 How the fault time is taken: fence and ceiling, the first ground-truth sample past the limit; control and GNSS, the moment the bridge applied the fault; freeze, the last heartbeat the FTS received; link, the last frame the ground station sent; manual, the FTS time when TERMINATE was sent.
 
@@ -47,7 +47,7 @@ How the fault time is taken: fence and ceiling, the first ground-truth sample pa
 - **control:** one motor cut at 20 m. The drone rolled over; the tilt passed 60 degrees about 0.35 s after the cut and the FTS confirmed it 0.5 s later. It was falling at 8.5 m/s when the parachute opened, at 17.6 m.
 - **freeze:** PX4 was stopped with SIGSTOP. The bridge's heartbeat forwarding stopped with it; the FTS terminated 1.0 s after the last heartbeat. The bridge kept the motors at zero on its own clock, since the frozen PX4 sent no more motor commands, and the drone fell and landed normally under the parachute.
 - **gnss:** the bridge stopped the FTS GNSS feed. The FTS terminated 1.0 s after its last fix, which came up to one GNSS period (100 ms) before the feed stopped; this is why the measured time is 968 ms and not over 1000 ms.
-- **link:** the ground station stopped sending; the FTS terminated 5.04 s after the last frame it received.
+- **link:** the ground station stopped sending; the FTS terminated after its 5 s link timeout. The measured 5.04 s includes up to one status period of timestamp lag: the fault time is the newest status time the ground station had when it sent its last frame, not the moment the FTS received that frame.
 - **manual:** TERMINATE_ARM and TERMINATE from the ground station; terminated at once (68 ms is the gap to the ground station's last status timestamp, not processing time).
 - **near_fence (false alarm):** held at x = 90 m, 10 m inside the fence, for 12 s; no termination.
 - **gnss_jump (false alarm):** one GNSS sample 2.2 km north of the drone; the next sample was back inside the fence, so the 0.5 s confirmation never completed; no termination.
