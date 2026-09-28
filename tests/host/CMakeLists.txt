@@ -14,3 +14,8 @@ add_test(NAME smoke COMMAND test_smoke)
 add_executable(test_proto test_proto.c ${REPO}/common/proto.c)
 target_include_directories(test_proto PRIVATE ${REPO}/common/include)
 add_test(NAME proto COMMAND test_proto)
+
+add_executable(test_geo test_geo.c ${REPO}/fts/src/logic/geo.c)
+target_include_directories(test_geo PRIVATE ${REPO}/fts/src/logic)
+target_link_libraries(test_geo m)
+add_test(NAME geo COMMAND test_geo)
