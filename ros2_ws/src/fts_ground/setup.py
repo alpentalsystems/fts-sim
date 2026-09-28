@@ -19,6 +19,7 @@ setup(
     entry_points={
         "console_scripts": [
             "ground_station = fts_ground.ground_station:main",
+            "runner = fts_ground.runner:main",
         ],
     },
 )
