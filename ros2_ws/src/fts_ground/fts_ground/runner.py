@@ -27,6 +27,10 @@ SETTLE_S = 3.0
 LANDING_WAIT_S = 25.0
 FALSE_ALARM_HOLD_S = 12.0
 REPOSITION_SPEED_M_S = 8.0
+ACK_TIMEOUT_S = 3.0
+COMMAND_TRIES = 3
+FAULT_TRIES = 5
+FAULT_CONFIRM_S = 1.0
 
 EXPECTED_CAUSE = {
     "fence": "FENCE",
@@ -74,20 +78,29 @@ class Px4:
     def close(self) -> None:
         self._stop.set()
 
-    def _ack(self, cmd: int) -> int:
-        end = time.time() + 5.0
+    def _ack(self, cmd: int) -> int | None:
+        """Result of the ack for cmd, or None if none came within ACK_TIMEOUT_S."""
+        end = time.time() + ACK_TIMEOUT_S
         while time.time() < end:
             ack = self.m.recv_match(type="COMMAND_ACK", blocking=True, timeout=1)
             if ack is not None and ack.command == cmd:
                 return ack.result
-        raise RuntimeError(f"no ack for command {cmd}")
+        return None
 
     def command(self, cmd: int, *params: float) -> None:
+        """COMMAND_LONG, resent (with a higher confirmation) if no ack arrives."""
         p = list(params) + [0.0] * (7 - len(params))
-        self.m.mav.command_long_send(self.m.target_system, self.m.target_component, cmd, 0, *p)
-        result = self._ack(cmd)
-        if result != MAV.MAV_RESULT_ACCEPTED:
-            raise RuntimeError(f"command {cmd} rejected: result {result}")
+        for confirmation in range(COMMAND_TRIES):
+            self.m.mav.command_long_send(self.m.target_system, self.m.target_component, cmd,
+                                         confirmation, *p)
+            result = self._ack(cmd)
+            if result is None:
+                print(f"no ack for command {cmd}, try {confirmation + 1}", flush=True)
+                continue
+            if result != MAV.MAV_RESULT_ACCEPTED:
+                raise RuntimeError(f"command {cmd} rejected: result {result}")
+            return
+        raise RuntimeError(f"no ack for command {cmd} after {COMMAND_TRIES} tries")
 
     def arm(self) -> None:
         """Arms, retrying while PX4 is still finishing its preflight checks."""
@@ -138,13 +151,19 @@ class Px4:
 
     def reposition(self, home_amsl: float, east: float, north: float, rel_alt: float) -> None:
         lat, lon = local_to_latlon(east, north)
-        self.m.mav.command_int_send(self.m.target_system, self.m.target_component,
-                                    MAV.MAV_FRAME_GLOBAL, MAV.MAV_CMD_DO_REPOSITION, 0, 0,
-                                    REPOSITION_SPEED_M_S, 1.0, 0, NAN,
-                                    int(lat * 1e7), int(lon * 1e7), home_amsl + rel_alt)
-        result = self._ack(MAV.MAV_CMD_DO_REPOSITION)
-        if result != MAV.MAV_RESULT_ACCEPTED:
-            raise RuntimeError(f"reposition rejected: result {result}")
+        for attempt in range(COMMAND_TRIES):
+            self.m.mav.command_int_send(self.m.target_system, self.m.target_component,
+                                        MAV.MAV_FRAME_GLOBAL, MAV.MAV_CMD_DO_REPOSITION, 0, 0,
+                                        REPOSITION_SPEED_M_S, 1.0, 0, NAN,
+                                        int(lat * 1e7), int(lon * 1e7), home_amsl + rel_alt)
+            result = self._ack(MAV.MAV_CMD_DO_REPOSITION)
+            if result is None:
+                print(f"no ack for reposition, try {attempt + 1}", flush=True)
+                continue
+            if result != MAV.MAV_RESULT_ACCEPTED:
+                raise RuntimeError(f"reposition rejected: result {result}")
+            return
+        raise RuntimeError(f"no ack for reposition after {COMMAND_TRIES} tries")
 
 
 class Runner(Node):
@@ -195,10 +214,21 @@ class Runner(Node):
         raise RuntimeError(f"FTS did not reach {state} (last {last})")
 
 
-def fault(name: str) -> None:
+def fault(name: str, repo: Path) -> None:
+    """Publishes a fault and waits for the bridge to log it (gz topic -p can be lost)."""
     env = dict(os.environ, GZ_IP="127.0.0.1")
-    subprocess.run(["gz", "topic", "-t", "/fts/fault", "-m", "gz.msgs.StringMsg",
-                    "-p", f'data: "{name}"'], check=True, env=env)
+    log = repo / "run/bridge.log"
+    applied = f"fts_bridge: fault {name} at"
+    for attempt in range(FAULT_TRIES):
+        subprocess.run(["gz", "topic", "-t", "/fts/fault", "-m", "gz.msgs.StringMsg",
+                        "-p", f'data: "{name}"'], check=True, env=env)
+        end = time.time() + FAULT_CONFIRM_S
+        while time.time() < end:
+            if applied in log.read_text():
+                return
+            time.sleep(0.05)
+        print(f"fault {name} not applied yet, try {attempt + 1}", flush=True)
+    raise RuntimeError(f"bridge did not apply fault {name}")
 
 
 def px4_pid(repo: Path) -> int:
@@ -227,22 +257,22 @@ def run(scenario: str, node: Runner, repo: Path) -> dict:
         elif scenario == "ceiling":
             px4.reposition(home, 0.0, 0.0, 60.0)
         elif scenario == "control":
-            fault("cut_motor:0")
+            fault("cut_motor:0", repo)
         elif scenario == "freeze":
             os.kill(px4_pid(repo), signal.SIGSTOP)
         elif scenario == "link":
             node.set_link(False)
         elif scenario == "gnss":
-            fault("gnss_off")
+            fault("gnss_off", repo)
         elif scenario == "manual":
             node.trigger("terminate")
         elif scenario == "near_fence":
             px4.reposition(home, 90.0, 0.0, TAKEOFF_M)
             px4.wait(lambda e, n, rel: e > 85.0, 60, "flight near the fence")
         elif scenario == "gnss_jump":
-            fault("gnss_jump")
+            fault("gnss_jump", repo)
         elif scenario == "hb_drop":
-            fault("hb_drop:5")
+            fault("hb_drop:5", repo)
 
         if scenario in FALSE_ALARMS:
             time.sleep(FALSE_ALARM_HOLD_S)
@@ -281,11 +311,15 @@ def main() -> None:
     node = Runner()
     executor = SingleThreadedExecutor()
     executor.add_node(node)
-    threading.Thread(target=executor.spin, daemon=True).start()
+    spinner = threading.Thread(target=executor.spin)
+    spinner.start()
     try:
         result = run(args.scenario, node, args.repo)
     finally:
+        # Stop and join the spin thread before teardown; a thread left in
+        # spin() at exit aborts the process.
         executor.shutdown()
+        spinner.join()
         node.destroy_node()
         rclpy.try_shutdown()
     args.out.mkdir(parents=True, exist_ok=True)

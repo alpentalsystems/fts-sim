@@ -79,3 +79,13 @@ def test_landing_tipped_over_higher_than_start():
     res = metrics.summarize("fence", rows, STATUS, -1)
     assert res["landed"]
     assert res["vz_under_chute_m_s"] == -5.0
+
+
+def test_short_fall_under_parachute_still_measured():
+    """A tumbling drone can land about 2 s after the parachute opens."""
+    rows = [r if r.t_us < 6_900_000 else metrics.Row(r.t_us, r.x, r.y, REST_Z, 0.0, 0.0, 0.0,
+                                                      True, True, -1, True, r.t_hb_us)
+            for r in fence_run()]
+    res = metrics.summarize("fence", rows, STATUS, -1)
+    assert res["landed"]
+    assert res["vz_under_chute_m_s"] == -5.0

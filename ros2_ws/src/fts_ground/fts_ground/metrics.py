@@ -10,7 +10,7 @@ CEILING_M = 40.0
 # A drone that tips over on landing can rest higher than at takeoff.
 LANDED_ABOVE_REST_M = 1.0
 LANDED_MAX_VZ_M_S = 0.5
-CHUTE_SETTLE_US = 3_000_000
+CHUTE_SETTLE_US = 1_000_000
 BEFORE_LANDING_US = 200_000
 
 
