@@ -10,3 +10,7 @@ set(REPO ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
 add_executable(test_smoke test_smoke.c)
 add_test(NAME smoke COMMAND test_smoke)
+
+add_executable(test_proto test_proto.c ${REPO}/common/proto.c)
+target_include_directories(test_proto PRIVATE ${REPO}/common/include)
+add_test(NAME proto COMMAND test_proto)
