@@ -17,3 +17,8 @@ export PATH=$HOME/.local/bin:$PATH
 # Gazebo plugins
 cmake -GNinja -S "$REPO/sim/plugins" -B "$REPO/build/sim"
 ninja -C "$REPO/build/sim"
+
+# I/O bridge
+cmake -GNinja -S "$REPO/bridge" -B "$REPO/build/bridge"
+ninja -C "$REPO/build/bridge"
+ctest --test-dir "$REPO/build/bridge" --output-on-failure
