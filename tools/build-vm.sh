@@ -22,3 +22,9 @@ ninja -C "$REPO/build/sim"
 cmake -GNinja -S "$REPO/bridge" -B "$REPO/build/bridge"
 ninja -C "$REPO/build/bridge"
 ctest --test-dir "$REPO/build/bridge" --output-on-failure
+
+# ROS 2 packages
+set +u
+source /opt/ros/humble/setup.bash
+set -u
+(cd "$REPO/ros2_ws" && colcon build --symlink-install)
