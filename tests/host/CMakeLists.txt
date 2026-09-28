@@ -29,3 +29,9 @@ add_executable(test_pbit test_pbit.c ${REPO}/fts/src/logic/pbit.c)
 target_include_directories(test_pbit PRIVATE ${REPO}/fts/src/logic)
 target_link_libraries(test_pbit m)
 add_test(NAME pbit COMMAND test_pbit)
+
+add_executable(test_app test_app.c ${REPO}/fts/src/logic/app.c ${REPO}/fts/src/logic/fts.c
+	${REPO}/fts/src/logic/geo.c ${REPO}/fts/src/logic/pbit.c ${REPO}/common/proto.c)
+target_include_directories(test_app PRIVATE ${REPO}/fts/src/logic ${REPO}/common/include)
+target_link_libraries(test_app m)
+add_test(NAME app COMMAND test_app)
