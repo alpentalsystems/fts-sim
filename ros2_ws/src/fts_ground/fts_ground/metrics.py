@@ -60,6 +60,11 @@ def _mean(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 2) if values else None
 
 
+def false_alarm_passed(history: list[dict], final_state: str) -> bool:
+    """No termination at any point, and disarmed (SAFE) at the end."""
+    return all(h["state"] != "TERMINATED" for h in history) and final_state == "SAFE"
+
+
 def fault_time(scenario: str, rows: list[Row], t_cmd_us: int, t_trigger_us: int) -> int | None:
     z0 = rows[0].z
     if scenario == "fence":

@@ -22,7 +22,12 @@ for s in "$@"; do
 	out=$REPO/runs/$s
 	rm -rf "$out"
 	mkdir -p "$out"
-	"$REPO/tools/run-sim.sh" "${GUI[@]}"
+	if ! "$REPO/tools/run-sim.sh" "${GUI[@]}"; then
+		failed+=("$s")
+		echo "scenario $s FAILED (simulation did not start)" >&2
+		cp "$REPO"/run/*.log "$out/" || echo "no logs to copy for $s" >&2
+		continue
+	fi
 	ros2 bag record -o "$out/bag" /fts/status > "$out/bag.log" 2>&1 &
 	bag=$!
 	status=0
@@ -31,10 +36,14 @@ for s in "$@"; do
 	kill -INT "$bag"
 	wait "$bag" || echo "rosbag exited with status $?" >&2
 	"$REPO/tools/stop-sim.sh"
-	cp "$REPO"/run/*.log "$REPO/run/truth.csv" "$out/"
+	cp "$REPO"/run/*.log "$REPO/run/truth.csv" "$out/" || echo "copying run files for $s failed" >&2
 	if [ "$status" -eq 0 ]; then
 		# -s: system numpy and matplotlib, not the user-installed numpy 2
-		python3 -s "$REPO/tools/plot_run.py" "$out"
+		if ! python3 -s "$REPO/tools/plot_run.py" "$out"; then
+			failed+=("$s")
+			echo "scenario $s passed but plotting failed" >&2
+			continue
+		fi
 		echo "scenario $s passed"
 	else
 		failed+=("$s")

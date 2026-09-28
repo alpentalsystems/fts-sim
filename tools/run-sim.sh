@@ -17,6 +17,16 @@ fi
 mkdir -p "$RUN"
 rm -f "$RUN"/*.log "$RUN/truth.csv" "$RUN/ptys"
 
+# On any failure, stop what this run already started.
+on_exit() {
+	local status=$?
+	if [ "$status" -ne 0 ] && [ -f "$RUN/pids" ]; then
+		echo "run-sim failed (status $status); stopping what it started" >&2
+		"$REPO/tools/stop-sim.sh"
+	fi
+}
+trap on_exit EXIT
+
 export GZ_IP=127.0.0.1
 export GZ_SIM_RESOURCE_PATH=$REPO/sim/models:$REPO/sim/worlds:$PX4/Tools/simulation/gz/models
 export GZ_SIM_SYSTEM_PLUGIN_PATH=$REPO/build/sim

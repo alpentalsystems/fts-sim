@@ -26,6 +26,7 @@ TAKEOFF_M = 20.0
 SETTLE_S = 3.0
 LANDING_WAIT_S = 25.0
 FALSE_ALARM_HOLD_S = 12.0
+DISARM_WAIT_S = 1.0
 REPOSITION_SPEED_M_S = 8.0
 ACK_TIMEOUT_S = 3.0
 COMMAND_TRIES = 3
@@ -276,10 +277,12 @@ def run(scenario: str, node: Runner, repo: Path) -> dict:
 
         if scenario in FALSE_ALARMS:
             time.sleep(FALSE_ALARM_HOLD_S)
-            passed = node.status.state == "ARMED"
             px4.land()
             px4.wait(lambda e, n, rel: rel < 0.5, 90, "landing")
             node.trigger("disarm")
+            time.sleep(DISARM_WAIT_S)
+            # A termination at any point, including the landing, fails the run.
+            passed = metrics.false_alarm_passed(node.history, node.status.state)
         else:
             node.wait_state("TERMINATED", 120)
             time.sleep(LANDING_WAIT_S)

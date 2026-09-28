@@ -89,3 +89,11 @@ def test_short_fall_under_parachute_still_measured():
     res = metrics.summarize("fence", rows, STATUS, -1)
     assert res["landed"]
     assert res["vz_under_chute_m_s"] == -5.0
+
+
+def test_false_alarm_passes_only_without_any_termination():
+    armed = [{"state": "SAFE"}, {"state": "ARMED"}]
+    assert metrics.false_alarm_passed(armed + [{"state": "SAFE"}], "SAFE")
+    assert not metrics.false_alarm_passed(armed + [{"state": "TERMINATED"}], "TERMINATED")
+    assert not metrics.false_alarm_passed(armed + [{"state": "TERMINATED"}], "SAFE")
+    assert not metrics.false_alarm_passed(armed, "ARMED")  # disarm not taken
